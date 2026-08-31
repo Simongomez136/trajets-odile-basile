@@ -314,6 +314,62 @@
   .week-row .time.notime { min-width: 60px; }
 
   .status { text-align: center; color: var(--ink-faint); font-size: 12.5px; margin-top: 24px; min-height: 16px; font-weight: 600; }
+
+  .lock-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .lock-card {
+    background: var(--panel);
+    border: 2px solid var(--line);
+    border-radius: 20px;
+    padding: 34px 28px;
+    max-width: 320px;
+    width: 100%;
+    text-align: center;
+  }
+  .lock-emoji { font-size: 34px; margin-bottom: 6px; }
+  .lock-title {
+    font-family: 'Baloo 2', cursive;
+    font-weight: 800;
+    font-size: 24px;
+    margin: 0 0 6px;
+    color: var(--ink);
+  }
+  .lock-subtitle { color: var(--ink-dim); font-size: 14px; margin: 0 0 18px; }
+  #lockForm { display: flex; flex-direction: column; gap: 10px; }
+  #lockInput {
+    font-family: 'Karla', sans-serif;
+    background: var(--bg);
+    border: 2px solid var(--line);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 15px;
+    text-align: center;
+  }
+  #lockInput:focus { outline: none; border-color: var(--simon); }
+  #lockForm button {
+    font-family: 'Baloo 2', cursive;
+    font-weight: 700;
+    font-size: 15px;
+    background: var(--ink);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 11px;
+    cursor: pointer;
+  }
+  .lock-error {
+    color: var(--simon-ink);
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 18px;
+    margin: 10px 0 0;
+  }
 </style>
 <script>
 // ─────────────────────────────────────────────────────────
@@ -353,7 +409,21 @@ const storage = {
 </script>
 </head>
 <body>
-<div class="wrap">
+
+<div id="lockScreen" class="lock-screen">
+  <div class="lock-card">
+    <div class="lock-emoji">🔒</div>
+    <h1 class="lock-title">Trajets de la semaine</h1>
+    <p class="lock-subtitle">Entrez le mot de passe pour continuer</p>
+    <form id="lockForm">
+      <input type="password" id="lockInput" placeholder="Mot de passe" autocomplete="off">
+      <button type="submit">Ouvrir</button>
+    </form>
+    <p class="lock-error" id="lockError"></p>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
   <header>
     <h1>Les trajets de la semaine 🚗</h1>
     <p class="subtitle">Qui dépose Odile, qui récupère Basile — à régler le dimanche soir.</p>
@@ -745,12 +815,40 @@ document.querySelectorAll('#viewToggle button').forEach(b => {
 document.getElementById('prevWeek').onclick = () => goWeek(-1);
 document.getElementById('nextWeek').onclick = () => goWeek(1);
 
-(async function init() {
+async function init() {
   await loadTemplate();
   await loadAssignments();
   subscribeAssignments();
   render();
-})();
+}
+
+// ── Verrou par mot de passe (côté client uniquement, dissuasif pas incassable) ──
+const APP_PASSWORD = "Zaska";
+const UNLOCK_KEY = "trajets-unlocked";
+
+function startApp() {
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('app').style.display = '';
+  init();
+}
+
+if (localStorage.getItem(UNLOCK_KEY) === 'true') {
+  startApp();
+} else {
+  document.getElementById('lockForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const val = document.getElementById('lockInput').value.trim();
+    if (val === APP_PASSWORD) {
+      localStorage.setItem(UNLOCK_KEY, 'true');
+      startApp();
+    } else {
+      document.getElementById('lockError').textContent = "Mot de passe incorrect.";
+      document.getElementById('lockInput').value = '';
+      document.getElementById('lockInput').focus();
+    }
+  });
+}
+
 </script>
 </body>
 </html>
