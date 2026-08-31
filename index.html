@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trajets de la semaine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.17.1/firebase-app-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.17.1/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --bg: #EFF7F4;
+    --panel: #FFFFFF;
+    --line: #DCEDE6;
+    --ink: #1F3B36;
+    --ink-dim: #5C7A73;
+    --ink-faint: #9AB3AC;
+
+    --camille: #FFC857;
+    --camille-ink: #6B4A00;
+    --simon: #FF6F91;
+    --simon-ink: #6B0F2A;
+
+    --odile: #4CAF87;
+    --odile-bg: #DEF3E9;
+    --basile: #3E92CC;
+    --basile-bg: #DFEBF7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Karla', sans-serif;
+    font-variant-numeric: tabular-nums;
+    min-height: 100vh;
+    padding: 30px 16px 60px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  header { margin-bottom: 20px; }
+  h1 {
+    font-family: 'Baloo 2', cursive;
+    font-weight: 800;
+    font-size: 36px;
+    margin: 0 0 4px;
+    line-height: 1.05;
+    color: var(--ink);
+  }
+  .subtitle { color: var(--ink-dim); font-size: 14.5px; margin: 0; }
+
+  .weeknav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    border-radius: 16px;
+    padding: 10px 14px;
+    margin: 18px 0 18px;
+  }
+  .weeknav button {
+    background: var(--bg);
+    border: none;
+    color: var(--ink);
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 17px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 700;
+  }
+  .weeknav button:hover { background: var(--line); }
+  .weekrange { font-size: 15px; color: var(--ink); font-weight: 700; text-align: center; font-family: 'Baloo 2', cursive; }
+  .weekrange .thisweek {
+    display: block;
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    font-family: 'Karla', sans-serif;
+    font-weight: 600;
+    margin-top: 1px;
+  }
+
+  .legend { display: flex; gap: 16px; margin-bottom: 16px; font-size: 13px; color: var(--ink-dim); flex-wrap: wrap; }
+  .legend .grp { display: flex; gap: 10px; }
+  .legend span.item { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .dot.camille { background: var(--camille); }
+  .dot.simon { background: var(--simon); }
+  .dot.odile { background: var(--odile); }
+  .dot.basile { background: var(--basile); }
+
+  .daytabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    margin-bottom: 16px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .daytabs::-webkit-scrollbar { display: none; }
+  .daytab {
+    flex: 0 0 auto;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    color: var(--ink-dim);
+    font-family: 'Baloo 2', cursive;
+    font-size: 17px;
+    font-weight: 700;
+    padding: 8px 14px;
+    cursor: pointer;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.25;
+  }
+  .daytab .d { font-size: 10px; font-family: 'Karla', sans-serif; font-weight: 600; color: var(--ink-faint); }
+  .daytab.active { color: var(--ink); border-color: var(--ink); background: #FFFDF4; }
+  .daytab .count {
+    font-family: 'Karla', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ink-faint);
+  }
+  .daytab.active .count { color: var(--simon); }
+
+  .empty {
+    padding: 34px 18px;
+    text-align: center;
+    color: var(--ink-dim);
+    font-size: 15px;
+    background: var(--panel);
+    border: 2px dashed var(--line);
+    border-radius: 16px;
+  }
+
+  .trajet {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 14px;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    border-radius: 14px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .trajet .time {
+    font-family: 'Baloo 2', cursive;
+    font-weight: 700;
+    font-size: 17px;
+    min-width: 50px;
+    color: var(--ink);
+  }
+  .trajet .time.notime {
+    font-family: 'Karla', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--ink-faint);
+    min-width: 66px;
+  }
+  .trajet .main { flex: 1; min-width: 120px; }
+  .trajet .label { font-size: 15px; font-weight: 600; }
+  .child-badge {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    margin-top: 5px;
+  }
+  .child-badge.odile { background: var(--odile-bg); color: var(--odile); }
+  .child-badge.basile { background: var(--basile-bg); color: var(--basile); }
+  .child-badge.lesdeux { background: #F1EAFB; color: #7B4FCB; }
+
+  .toggle {
+    display: flex;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .toggle button {
+    font-family: 'Karla', sans-serif;
+    font-size: 12.5px;
+    font-weight: 700;
+    border: none;
+    background: transparent;
+    color: var(--ink-dim);
+    padding: 8px 11px;
+    cursor: pointer;
+  }
+  .toggle button.on.camille { background: var(--camille); color: var(--camille-ink); }
+  .toggle button.on.simon { background: var(--simon); color: var(--simon-ink); }
+
+  .rowbtns { display: flex; gap: 2px; flex: 0 0 auto; }
+  .iconbtn {
+    background: none;
+    border: none;
+    color: var(--ink-faint);
+    cursor: pointer;
+    padding: 4px 6px;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+  .iconbtn:hover { color: var(--ink); background: var(--bg); }
+
+  .addrow { margin-top: 4px; }
+  .addbtn {
+    background: #FFFDF4;
+    border: 2px dashed var(--camille);
+    color: var(--ink);
+    width: 100%;
+    padding: 13px;
+    border-radius: 14px;
+    font-family: 'Baloo 2', cursive;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    text-align: center;
+  }
+  .addbtn:hover { background: #FFF6DC; }
+
+  .form {
+    background: var(--panel);
+    border: 2px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .form input, .form select {
+    font-family: 'Karla', sans-serif;
+    background: var(--bg);
+    border: 2px solid var(--line);
+    color: var(--ink);
+    border-radius: 9px;
+    padding: 9px 10px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .form input[type=time] { width: 105px; }
+  .form input[type=text] { flex: 1; min-width: 140px; }
+  .form select { width: 108px; }
+  .form-actions { display: flex; gap: 8px; width: 100%; justify-content: flex-end; }
+  .form-actions button {
+    font-family: 'Baloo 2', cursive;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 9px 16px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-save { background: var(--ink); color: #fff; }
+  .btn-cancel { background: none; color: var(--ink-dim); border: 2px solid var(--line) !important; }
+
+  .viewtoggle {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .viewtoggle button {
+    font-family: 'Baloo 2', cursive;
+    font-weight: 700;
+    font-size: 14px;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    color: var(--ink-dim);
+    padding: 8px 14px;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .viewtoggle button.active { color: var(--ink); border-color: var(--ink); background: #FFFDF4; }
+
+  .week-day {
+    margin-bottom: 22px;
+  }
+  .week-day h2 {
+    font-family: 'Baloo 2', cursive;
+    font-size: 19px;
+    font-weight: 700;
+    margin: 0 0 10px;
+    color: var(--ink);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .week-day h2 .wd-date { font-family: 'Karla', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink-faint); }
+  .week-day .empty-mini {
+    color: var(--ink-faint);
+    font-size: 13.5px;
+    padding: 8px 2px;
+  }
+  .week-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .week-row .time { min-width: 46px; }
+  .week-row .time.notime { min-width: 60px; }
+
+  .status { text-align: center; color: var(--ink-faint); font-size: 12.5px; margin-top: 24px; min-height: 16px; font-weight: 600; }
+</style>
+<script>
+// ─────────────────────────────────────────────────────────
+// 1) Colle ici la config de TON projet Firebase
+//    (Firebase console → ⚙ Paramètres du projet → tes applications → config SDK)
+// ─────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDAXhrguOu72k9dq2d1ly4PbYlZXOK8rOc",
+  authDomain: "trajets-odile-basile.firebaseapp.com",
+  projectId: "trajets-odile-basile",
+  storageBucket: "trajets-odile-basile.firebasestorage.app",
+  messagingSenderId: "780382284685",
+  appId: "1:780382284685:web:b630524c92db4a8e426bc4"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const COLLECTION = 'trajets'; // toutes les données de l'app vivent dans cette collection
+
+// Mini-remplaçant de window.storage, mêmes méthodes get/set, mais branché sur Firestore
+const storage = {
+  async get(key) {
+    const doc = await db.collection(COLLECTION).doc(key).get();
+    if (!doc.exists) return null;
+    return { key, value: doc.data().value };
+  },
+  async set(key, value) {
+    await db.collection(COLLECTION).doc(key).set({ value });
+    return { key, value };
+  },
+  onChange(key, callback) {
+    return db.collection(COLLECTION).doc(key).onSnapshot(doc => {
+      if (doc.exists) callback(doc.data().value);
+    });
+  }
+};
+</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Les trajets de la semaine 🚗</h1>
+    <p class="subtitle">Qui dépose Odile, qui récupère Basile — à régler le dimanche soir.</p>
+  </header>
+
+  <div class="weeknav">
+    <button id="prevWeek" aria-label="Semaine précédente">‹</button>
+    <div class="weekrange" id="weekRange"></div>
+    <button id="nextWeek" aria-label="Semaine suivante">›</button>
+  </div>
+
+  <div class="legend">
+    <div class="grp">
+      <span class="item"><span class="dot odile"></span>Odile</span>
+      <span class="item"><span class="dot basile"></span>Basile</span>
+    </div>
+    <div class="grp">
+      <span class="item"><span class="dot camille"></span>Camille</span>
+      <span class="item"><span class="dot simon"></span>Simon</span>
+    </div>
+  </div>
+
+  <div class="viewtoggle" id="viewToggle">
+    <button data-view="day" class="active">Par jour</button>
+    <button data-view="week">Vue d'ensemble</button>
+  </div>
+
+  <div class="daytabs" id="dayTabs"></div>
+  <div id="dayList"></div>
+
+  <div class="addrow" id="addRow"></div>
+
+  <div id="weekOverview"></div>
+
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+const DAYS = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+const DAYS_SHORT = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+
+let template = [];        // [{id, day(0-6), time:"HH:MM"|"", label, child:"Odile"|"Basile"|"Les deux"|""}]
+let assignments = {};     // {trajetId: "Camille"|"Simon"}
+const TEMPLATE_VERSION = 2; // bump this to force a re-seed of DEFAULT_TEMPLATE for everyone
+
+// day index: 0=Lundi ... 4=Vendredi
+const DEFAULT_TEMPLATE = [
+  ...[0,1,2,3,4].map(day => ({ id: crypto.randomUUID(), day, time: "08:15", label: "École — aller", child: "Les deux" })),
+  ...[0,1,2,3,4].map(day => ({ id: crypto.randomUUID(), day, time: "", label: "École — reprise", child: "Les deux" })),
+
+  { id: crypto.randomUUID(), day: 0, time: "18:00", label: "Piscine — aller", child: "Basile" },
+  { id: crypto.randomUUID(), day: 0, time: "18:30", label: "Piscine — retour", child: "Basile" },
+
+  { id: crypto.randomUUID(), day: 1, time: "17:40", label: "FM1 — aller", child: "Basile" },
+  { id: crypto.randomUUID(), day: 1, time: "18:30", label: "FM1 — retour", child: "Basile" },
+  { id: crypto.randomUUID(), day: 1, time: "18:30", label: "Piano — aller", child: "Odile" },
+  { id: crypto.randomUUID(), day: 1, time: "19:20", label: "Piano — retour", child: "Odile" },
+
+  { id: crypto.randomUUID(), day: 2, time: "17:30", label: "Récupération à Suarlée", child: "Les deux" },
+  { id: crypto.randomUUID(), day: 2, time: "18:40", label: "FM3 — aller", child: "Odile" },
+  { id: crypto.randomUUID(), day: 2, time: "19:30", label: "FM3 — retour", child: "Odile" },
+
+  { id: crypto.randomUUID(), day: 3, time: "17:00", label: "Boxe — aller (seule)", child: "Odile" },
+  { id: crypto.randomUUID(), day: 3, time: "18:00", label: "Boxe — retour (seule)", child: "Odile" },
+  { id: crypto.randomUUID(), day: 3, time: "18:30", label: "FM3 — aller", child: "Odile" },
+  { id: crypto.randomUUID(), day: 3, time: "19:20", label: "FM3 — retour", child: "Odile" },
+];
+let currentDay = new Date().getDay();
+currentDay = currentDay === 0 ? 6 : currentDay - 1;
+let weekMonday = getMonday(new Date());
+let addFormOpenFor = null;
+let currentView = 'day'; // 'day' | 'week'
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function weekKey(monday) { return monday.toISOString().slice(0,10); }
+function fmtDate(d) { return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }); }
+function isThisWeek(monday) { return weekKey(monday) === weekKey(getMonday(new Date())); }
+
+async function loadTemplate() {
+  let storedVersion = 0;
+  try {
+    const vRes = await storage.get('template-version');
+    if (vRes) storedVersion = parseInt(vRes.value, 10) || 0;
+  } catch (e) { storedVersion = 0; }
+
+  if (storedVersion < TEMPLATE_VERSION) {
+    template = DEFAULT_TEMPLATE;
+    try {
+      await saveTemplate();
+      await storage.set('template-version', String(TEMPLATE_VERSION));
+    } catch (e) { /* ignore, will retry next load */ }
+    return;
+  }
+
+  try {
+    const res = await storage.get('trajets-template');
+    if (res) {
+      template = JSON.parse(res.value);
+    } else {
+      template = DEFAULT_TEMPLATE;
+      await saveTemplate();
+    }
+  } catch (e) {
+    template = DEFAULT_TEMPLATE;
+    try { await saveTemplate(); } catch (e2) { /* ignore */ }
+  }
+}
+async function saveTemplate() {
+  try { await storage.set('trajets-template', JSON.stringify(template)); }
+  catch (e) { setStatus("Enregistrement impossible, réessaie."); }
+}
+async function loadAssignments() {
+  try {
+    const res = await storage.get('assignments:' + weekKey(weekMonday));
+    assignments = res ? JSON.parse(res.value) : {};
+  } catch (e) { assignments = {}; }
+}
+async function saveAssignments() {
+  try { await storage.set('assignments:' + weekKey(weekMonday), JSON.stringify(assignments)); }
+  catch (e) { setStatus("Enregistrement impossible, réessaie."); }
+}
+function setStatus(msg) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  if (msg) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2500);
+}
+
+function renderWeekRange() {
+  const sunday = new Date(weekMonday);
+  sunday.setDate(sunday.getDate() + 6);
+  document.getElementById('weekRange').innerHTML =
+    `${fmtDate(weekMonday)} – ${fmtDate(sunday)}` +
+    (isThisWeek(weekMonday) ? `<span class="thisweek">cette semaine</span>` : `<span class="thisweek">&nbsp;</span>`);
+}
+
+function renderWeekOverview() {
+  const el = document.getElementById('weekOverview');
+  el.innerHTML = '';
+  DAYS.forEach((name, i) => {
+    const d = new Date(weekMonday);
+    d.setDate(d.getDate() + i);
+    const dayTrajets = template
+      .filter(t => t.day === i)
+      .sort((a,b) => {
+        if (!a.time && !b.time) return 0;
+        if (!a.time) return 1;
+        if (!b.time) return -1;
+        return a.time.localeCompare(b.time);
+      });
+
+    const section = document.createElement('div');
+    section.className = 'week-day';
+    section.innerHTML = `<h2>${name} <span class="wd-date">${fmtDate(d)}</span></h2>`;
+
+    if (dayTrajets.length === 0) {
+      const p = document.createElement('div');
+      p.className = 'empty-mini';
+      p.textContent = 'Rien de prévu.';
+      section.appendChild(p);
+    } else {
+      dayTrajets.forEach(t => {
+        const assigned = assignments[t.id];
+        const childClass = t.child ? t.child.toLowerCase().replace(' ', '') : '';
+        const childBadge = t.child ? `<span class="child-badge ${childClass}">${t.child}</span>` : '';
+        const row = document.createElement('div');
+        row.className = 'week-row';
+        row.innerHTML = `
+          <div class="time${t.time ? '' : ' notime'}">${t.time || 'à définir'}</div>
+          <div class="main">
+            <div class="label">${escapeHtml(t.label)}</div>
+            ${childBadge}
+          </div>
+          <div class="toggle">
+            <button class="${assigned==='Camille' ? 'on camille' : ''}" data-person="Camille">Camille</button>
+            <button class="${assigned==='Simon' ? 'on simon' : ''}" data-person="Simon">Simon</button>
+          </div>
+        `;
+        row.querySelectorAll('.toggle button').forEach(b => {
+          b.onclick = () => setAssignment(t.id, b.dataset.person);
+        });
+        section.appendChild(row);
+      });
+    }
+    el.appendChild(section);
+  });
+}
+
+function renderDayTabs() {
+  const el = document.getElementById('dayTabs');
+  el.innerHTML = '';
+  DAYS.forEach((name, i) => {
+    const count = template.filter(t => t.day === i).length;
+    const d = new Date(weekMonday);
+    d.setDate(d.getDate() + i);
+    const btn = document.createElement('button');
+    btn.className = 'daytab' + (i === currentDay ? ' active' : '');
+    btn.innerHTML = `${DAYS_SHORT[i]}<span class="d">${d.getDate()}</span>` + (count ? `<span class="count">${count}</span>` : '');
+    btn.onclick = () => { currentDay = i; addFormOpenFor = null; render(); };
+    el.appendChild(btn);
+  });
+}
+
+function renderDayList() {
+  const list = document.getElementById('dayList');
+  list.innerHTML = '';
+  const dayTrajets = template
+    .filter(t => t.day === currentDay)
+    .sort((a,b) => {
+      if (!a.time && !b.time) return 0;
+      if (!a.time) return 1;
+      if (!b.time) return -1;
+      return a.time.localeCompare(b.time);
+    });
+
+  if (dayTrajets.length === 0 && addFormOpenFor !== 'new') {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = `Aucun trajet le ${DAYS[currentDay].toLowerCase()}. Ajoutez-en un ci-dessous.`;
+    list.appendChild(empty);
+  }
+
+  dayTrajets.forEach(t => {
+    if (addFormOpenFor === t.id) {
+      list.appendChild(buildForm(t));
+      return;
+    }
+    const row = document.createElement('div');
+    row.className = 'trajet';
+    const assigned = assignments[t.id];
+    const childClass = t.child ? t.child.toLowerCase().replace(' ', '') : '';
+    const childBadge = t.child ? `<span class="child-badge ${childClass}">${t.child}</span>` : '';
+    row.innerHTML = `
+      <div class="time${t.time ? '' : ' notime'}">${t.time || 'à définir'}</div>
+      <div class="main">
+        <div class="label">${escapeHtml(t.label)}</div>
+        ${childBadge}
+      </div>
+      <div class="toggle">
+        <button class="${assigned==='Camille' ? 'on camille' : ''}" data-person="Camille">Camille</button>
+        <button class="${assigned==='Simon' ? 'on simon' : ''}" data-person="Simon">Simon</button>
+      </div>
+      <div class="rowbtns">
+        <button class="iconbtn" data-action="edit" title="Modifier">✎</button>
+        <button class="iconbtn" data-action="delete" title="Supprimer">✕</button>
+      </div>
+    `;
+    row.querySelectorAll('.toggle button').forEach(b => {
+      b.onclick = () => setAssignment(t.id, b.dataset.person);
+    });
+    row.querySelector('[data-action="edit"]').onclick = () => { addFormOpenFor = t.id; render(); };
+    row.querySelector('[data-action="delete"]').onclick = () => deleteTrajet(t.id);
+    list.appendChild(row);
+  });
+}
+
+function buildForm(existing) {
+  const wrap = document.createElement('div');
+  wrap.className = 'form';
+  const time = existing ? existing.time : '';
+  const label = existing ? existing.label : '';
+  const child = existing ? (existing.child || '') : '';
+  wrap.innerHTML = `
+    <input type="time" value="${time}" id="f-time">
+    <input type="text" placeholder="Ex. École, Judo…" value="${escapeAttr(label)}" id="f-label">
+    <select id="f-child">
+      <option value="" ${child==='' ? 'selected' : ''}>— Enfant —</option>
+      <option value="Odile" ${child==='Odile' ? 'selected' : ''}>Odile</option>
+      <option value="Basile" ${child==='Basile' ? 'selected' : ''}>Basile</option>
+      <option value="Les deux" ${child==='Les deux' ? 'selected' : ''}>Les deux</option>
+    </select>
+    <div class="form-actions">
+      <button class="btn-cancel">Annuler</button>
+      <button class="btn-save">${existing ? 'Enregistrer' : 'Ajouter'}</button>
+    </div>
+  `;
+  wrap.querySelector('.btn-cancel').onclick = () => { addFormOpenFor = null; render(); };
+  wrap.querySelector('.btn-save').onclick = async () => {
+    const t = wrap.querySelector('#f-time').value;
+    const l = wrap.querySelector('#f-label').value.trim();
+    const c = wrap.querySelector('#f-child').value;
+    if (!l) { setStatus('Indique au moins un nom de trajet.'); return; }
+    if (existing) {
+      existing.time = t; existing.label = l; existing.child = c;
+    } else {
+      template.push({ id: crypto.randomUUID(), day: currentDay, time: t, label: l, child: c });
+    }
+    await saveTemplate();
+    addFormOpenFor = null;
+    render();
+  };
+  setTimeout(() => wrap.querySelector('#f-label')?.focus(), 0);
+  return wrap;
+}
+
+function renderAddRow() {
+  const el = document.getElementById('addRow');
+  el.innerHTML = '';
+  if (addFormOpenFor === 'new') {
+    el.appendChild(buildForm(null));
+  } else {
+    const btn = document.createElement('button');
+    btn.className = 'addbtn';
+    btn.textContent = `+ Ajouter un trajet le ${DAYS[currentDay].toLowerCase()}`;
+    btn.onclick = () => { addFormOpenFor = 'new'; render(); };
+    el.appendChild(btn);
+  }
+}
+
+async function setAssignment(id, person) {
+  assignments[id] = assignments[id] === person ? null : person;
+  render();
+  await saveAssignments();
+}
+
+async function deleteTrajet(id) {
+  template = template.filter(t => t.id !== id);
+  delete assignments[id];
+  await saveTemplate();
+  await saveAssignments();
+  render();
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+function escapeAttr(s) {
+  return String(s).replace(/"/g, '&quot;');
+}
+
+// ── Synchro en direct : si l'un modifie, l'autre voit la mise à jour sans recharger ──
+let unsubAssignments = null;
+
+function subscribeAssignments() {
+  if (unsubAssignments) unsubAssignments();
+  unsubAssignments = storage.onChange('assignments:' + weekKey(weekMonday), value => {
+    assignments = JSON.parse(value);
+    render();
+  });
+}
+
+storage.onChange('trajets-template', value => {
+  template = JSON.parse(value);
+  render();
+});
+
+async function goWeek(delta) {
+  weekMonday.setDate(weekMonday.getDate() + delta * 7);
+  weekMonday = getMonday(weekMonday);
+  addFormOpenFor = null;
+  await loadAssignments();
+  subscribeAssignments();
+  render();
+}
+
+function render() {
+  renderWeekRange();
+
+  const isDayView = currentView === 'day';
+  document.getElementById('dayTabs').style.display = isDayView ? '' : 'none';
+  document.getElementById('dayList').style.display = isDayView ? '' : 'none';
+  document.getElementById('addRow').style.display = isDayView ? '' : 'none';
+  document.getElementById('weekOverview').style.display = isDayView ? 'none' : '';
+
+  if (isDayView) {
+    renderDayTabs();
+    renderDayList();
+    renderAddRow();
+  } else {
+    renderWeekOverview();
+  }
+}
+
+document.querySelectorAll('#viewToggle button').forEach(b => {
+  b.onclick = () => {
+    currentView = b.dataset.view;
+    addFormOpenFor = null;
+    document.querySelectorAll('#viewToggle button').forEach(x => x.classList.toggle('active', x === b));
+    render();
+  };
+});
+
+document.getElementById('prevWeek').onclick = () => goWeek(-1);
+document.getElementById('nextWeek').onclick = () => goWeek(1);
+
+(async function init() {
+  await loadTemplate();
+  await loadAssignments();
+  subscribeAssignments();
+  render();
+})();
+</script>
+</body>
+</html>
